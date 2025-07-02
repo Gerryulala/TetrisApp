@@ -20,7 +20,9 @@ object AppModule {
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext appContext: Context): TetrisDatabase =
-        Room.databaseBuilder(appContext, TetrisDatabase::class.java, "tetris_db").build()
+        Room.databaseBuilder(appContext, TetrisDatabase::class.java, "tetris_db")
+            .fallbackToDestructiveMigration()   // 🔸 más rápido para desarrollo
+            .build()
 
     @Provides
     fun provideHighScoreDao(db: TetrisDatabase): HighScoreDao = db.highScoreDao()

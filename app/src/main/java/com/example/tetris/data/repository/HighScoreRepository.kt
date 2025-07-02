@@ -1,16 +1,17 @@
-// HighScoreRepository.kt
 package com.example.tetris.data.repository
 
-import com.example.tetris.data.model.HighScore
 import com.example.tetris.data.local.HighScoreDao
+import com.example.tetris.data.model.HighScore
 import javax.inject.Inject
 
 class HighScoreRepository @Inject constructor(
-    private val highScoreDao: HighScoreDao
+    private val dao: HighScoreDao
 ) {
-    suspend fun getHighScore(): HighScore? = highScoreDao.getHighScore()
+    suspend fun getTopScores(): List<HighScore> {
+        return dao.getTopScores()
+    }
 
-    suspend fun saveHighScore(score: Int) {
-        highScoreDao.saveHighScore(HighScore(id = 1, score = score))
+    suspend fun saveScore(score: Int) {
+        dao.insertScore(HighScore(score = score))
     }
 }

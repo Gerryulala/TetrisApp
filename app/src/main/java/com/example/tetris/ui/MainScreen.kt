@@ -40,26 +40,39 @@ import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material.icons.automirrored.filled.*
+import com.example.tetris.data.model.HighScore
+import java.text.SimpleDateFormat
+import java.util.*
+import android.media.MediaPlayer
+import androidx.compose.ui.platform.LocalContext
+import com.example.tetris.viewmodel.MainViewModel.SoundEffect
+import com.example.tetris.R
 
 
 
 @Composable
 fun MainScreen(viewModel: MainViewModel, onExit: () -> Unit) {
     val isPlaying by viewModel.isPlaying.collectAsState()
+    val topScores by viewModel.topScores.collectAsState()
 
     if (!isPlaying) {
         StartMenu(
             onStart = { viewModel.startGame() },
-            onExit = onExit
+            onExit = onExit,
+            topScores = topScores            // 🔸 nuevo
         )
     } else {
         GameUI(viewModel)
     }
 }
 
+fun formatTimestamp(timestamp: Long): String {
+    val formatter = SimpleDateFormat("d MMM HH:mm", Locale.getDefault())
+    return formatter.format(Date(timestamp))
+}
 
 @Composable
-fun StartMenu(onStart: () -> Unit, onExit: () -> Unit) {
+fun StartMenu(onStart: () -> Unit, onExit: () -> Unit, topScores: List<HighScore>) {
     val fadeInAnim = remember { Animatable(0f) }
 
     LaunchedEffect(Unit) {
@@ -118,6 +131,32 @@ fun StartMenu(onStart: () -> Unit, onExit: () -> Unit) {
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Iniciar", fontSize = 18.sp)
             }
+// 🔹 ENCABEZADO
+            Text(
+                text = "TOP 5",
+                color = Color.Yellow,
+                fontSize = 24.sp,
+                style = MaterialTheme.typography.titleLarge
+            )
+
+            Spacer(Modifier.height(8.dp))
+
+// 🔹 LISTA
+            topScores.forEachIndexed { index, hs ->
+                val icon = when (index) {
+                    0 -> "🥇"
+                    1 -> "🥈"
+                    2 -> "🥉"
+                    else -> "${index + 1}."
+                }
+
+                Text(
+                    text = "$icon  ${hs.score}   🕓 ${formatTimestamp(hs.date)}",
+                    color = Color.White,
+                    fontSize = 16.sp
+                )
+            }
+            Spacer(Modifier.height(16.dp))
 
             // Botón Salir
             Button(
@@ -144,6 +183,42 @@ fun StartMenu(onStart: () -> Unit, onExit: () -> Unit) {
 
 @Composable
 fun GameUI(viewModel: MainViewModel) {
+    val snackbarHostState = remember { SnackbarHostState() }
+    val score by viewModel.score.collectAsState()
+    val highScore by viewModel.highScore.collectAsState()
+    val gameOver by viewModel.gameOver.collectAsState()
+    val context = LocalContext.current
+
+    LaunchedEffect(Unit) {
+        viewModel.onPlaySound = { effect ->
+            val soundRes = when (effect) {
+                SoundEffect.LINE_CLEAR -> R.raw.line_clear
+                SoundEffect.GAME_OVER -> R.raw.game_over
+            }
+
+            val mediaPlayer = MediaPlayer.create(context, soundRes)
+            mediaPlayer.setOnCompletionListener {
+                it.release()
+            }
+            mediaPlayer.start()
+        }
+    }
+
+    // Mostrar snackbar si acabamos de batir récord y termina el juego
+    LaunchedEffect(score, highScore, gameOver) {
+        if (gameOver && score == highScore && score > 0) {
+            snackbarHostState.showSnackbar("🎉 ¡Nuevo récord: $score puntos!")
+        }
+    }
+
+    Scaffold(snackbarHost = { SnackbarHost(hostState = snackbarHostState) }) { paddingValues ->
+        Box(modifier = Modifier.padding(paddingValues)) {
+            GameUIContent(viewModel)
+        }
+    }
+}
+@Composable
+fun GameUIContent(viewModel: MainViewModel) {
     val tetromino by viewModel.tetromino.collectAsState()
     val offset by viewModel.offset.collectAsState()
     val animatedOffset by animateFloatAsState(targetValue = offset.toFloat(), label = "tetrominoOffset")

@@ -1,9 +1,9 @@
-// MainViewModel.kt
 package com.example.tetris.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.tetris.data.model.Cell
+import com.example.tetris.data.model.HighScore
 import com.example.tetris.data.model.TetrominoFactory
 import com.example.tetris.data.model.TetrominoType
 import com.example.tetris.data.repository.HighScoreRepository
@@ -41,11 +41,22 @@ class MainViewModel @Inject constructor(
     private val _highScore = MutableStateFlow(0)
     val highScore: StateFlow<Int> = _highScore
 
+    private val _topScores = MutableStateFlow<List<HighScore>>(emptyList())
+    val topScores: StateFlow<List<HighScore>> = _topScores
+
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying
 
     private val _isPaused = MutableStateFlow(false)
     val isPaused: StateFlow<Boolean> = _isPaused
+    private var lastSavedScore = -1
+
+    var onPlaySound: ((SoundEffect) -> Unit)? = null
+
+    enum class SoundEffect {
+        LINE_CLEAR,
+        GAME_OVER
+    }
 
     fun pauseGame() {
         _isPaused.value = true
@@ -55,11 +66,11 @@ class MainViewModel @Inject constructor(
         _isPaused.value = false
     }
 
-
-
     init {
         viewModelScope.launch {
-            _highScore.value = highScoreRepository.getHighScore()?.score ?: 0
+            val top = highScoreRepository.getTopScores()
+            _topScores.value = top
+            _highScore.value = top.firstOrNull()?.score ?: 0
         }
         startFalling()
     }
@@ -118,6 +129,8 @@ class MainViewModel @Inject constructor(
                 else -> 800
             }
             _flashingRows.value = cleared
+            onPlaySound?.invoke(SoundEffect.LINE_CLEAR)  // 🔈
+
             viewModelScope.launch {
                 delay(150L)
                 _flashingRows.value = emptyList()
@@ -126,10 +139,21 @@ class MainViewModel @Inject constructor(
 
         val newPiece = TetrominoFactory.random()
         if (collides(newPiece.shape, 0)) {
+            saveCurrentScore()
+            onPlaySound?.invoke(SoundEffect.GAME_OVER) // 🔈
             _gameOver.value = true
         } else {
             _tetromino.value = newPiece
             _offset.value = 0
+        }
+    }
+
+    private fun collides(shape: List<Pair<Int, Int>>, offsetY: Int): Boolean {
+        return shape.any { (row, col) ->
+            val newRow = row + offsetY
+            newRow >= game.rows ||
+                    col !in 0 until game.columns ||
+                    game.board.getOrNull(newRow)?.getOrNull(col)?.isFilled == true
         }
     }
 
@@ -196,15 +220,6 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    private fun collides(shape: List<Pair<Int, Int>>, offsetY: Int): Boolean {
-        return shape.any { (row, col) ->
-            val newRow = row + offsetY
-            newRow >= game.rows ||
-                    col !in 0 until game.columns ||
-                    game.board.getOrNull(newRow)?.getOrNull(col)?.isFilled == true
-        }
-    }
-
     fun restartGame() {
         for (row in 0 until game.rows) {
             for (col in 0 until game.columns) {
@@ -212,12 +227,7 @@ class MainViewModel @Inject constructor(
             }
         }
 
-        viewModelScope.launch {
-            if (score.value > highScore.value) {
-                highScoreRepository.saveHighScore(score.value)
-                _highScore.value = score.value
-            }
-        }
+        saveCurrentScore()
 
         _tetromino.value = TetrominoFactory.random()
         _offset.value = 0
@@ -225,6 +235,18 @@ class MainViewModel @Inject constructor(
         _gameOver.value = false
 
         startFalling()
+    }
+
+    private fun saveCurrentScore() = viewModelScope.launch {
+        val currentScore = _score.value
+        if (currentScore > 0 && currentScore != lastSavedScore) {
+            highScoreRepository.saveScore(currentScore)
+            lastSavedScore = currentScore
+            _topScores.value = highScoreRepository.getTopScores()
+            if (currentScore > _highScore.value) {
+                _highScore.value = currentScore
+            }
+        }
     }
 
     fun startGame() {
@@ -239,5 +261,4 @@ class MainViewModel @Inject constructor(
     fun exitGame() {
         _isPlaying.value = false
     }
-
 }

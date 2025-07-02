@@ -42,7 +42,7 @@ Este es un proyecto de Tetris desarrollado con tecnologías modernas de Android,
 
 ## 🛠️ Mejora futura (Ideas)
 
-- Sonidos y efectos hápticos
+- Sonidos de fondo
 - Soporte para más idiomas (i18n)
 - Guardado/restauración de partidas
 - Tests instrumentados con Compose UI Test
